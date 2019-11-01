@@ -121,11 +121,13 @@ class RobotDynamicsModel(DynamicsModel):
 
 class ParticleFilterNetwork(nn.Module):
 
-    def __init__(self, dynamics_model, measurement_model):
+    def __init__(self, dynamics_model, measurement_model, soft_resample_alpha):
         super(ParticleFilterNetwork, self).__init__()
-
         self.dynamics_model = dynamics_model
         self.measurement_model = measurement_model
+
+        assert(soft_resample_alpha >= 0. and soft_resample_alpha <= 1.)
+        self.soft_resample_alpha = soft_resample_alpha
 
     def forward(self, states_prev, log_weights_prev, observation, control):
         num_particles = states_prev.shape[0]
@@ -139,21 +141,40 @@ class ParticleFilterNetwork(nn.Module):
             self.measurement_model(observation, states_pred)
 
         # Find best particle
-        best_index = np.argmax(log_weights_pred.numpy())
-        best_state = states_pred[best_index].numpy()
-        # weights_numpy = np.exp(log_weights_pred.numpy())
-        # weights_numpy /= np.sum(weights_numpy)
-        # best_state = np.sum(states_pred.numpy() * weights_numpy[:,np.newaxis], axis=0)
-        # Particle re-sampling
-        indices = torch.multinomial(
-            torch.exp(log_weights_pred),
-            num_samples=num_particles,
-            replacement=True)
-        states = states_pred[indices]
+        best_index = torch.argmax(log_weights_pred)
+        best_state = states_pred[best_index]
 
-        # Equalize weights
-        log_weights = torch.zeros_like(
-            log_weights_pred) - np.log(num_particles)
+        # Re-sampling
+        uniform_log_weights = torch.FloatTensor(
+            np.zeros_like(log_weights_pred) - np.log(num_particles)
+        )
+        if self.soft_resample_alpha < 1.0:
+            # Soft re-sampling
+            interpolated_weights = \
+                (self.soft_resample_alpha * torch.exp(log_weights_pred)) \
+                + ((1. - self.soft_resample_alpha) * 1. / num_particles)
+
+            indices = torch.multinomial(
+                interpolated_weights,
+                num_samples=num_particles,
+                replacement=True)
+            states = states_pred[indices]
+
+            # Importance sampling & normalization
+            log_weights = log_weights_pred - torch.log(interpolated_weights)
+
+            # Normalize weights
+            log_weights -= torch.logsumexp(log_weights, dim=0)
+        else:
+            # Standard particle filter re-sampling -- this kills gradients :(
+            indices = torch.multinomial(
+                torch.exp(log_weights_pred),
+                num_samples=num_particles,
+                replacement=True)
+            states = states_pred[indices]
+
+            # Equalize weights
+            log_weights = uniform_log_weights
 
         return best_state, states, log_weights
 
@@ -199,7 +220,7 @@ particle_states = torch.FloatTensor(
     [true_states[0] for _ in range(num_particles)])
 particle_weights = torch.ones(num_particles)
 
-pfnet = ParticleFilterNetwork(dynamics, measurements)
+pfnet = ParticleFilterNetwork(dynamics, measurements, 1.0)
 for control, observation in zip(controls, observations):
     # Type conversions
     observation = torch.from_numpy(observation.astype(np.float32))
@@ -209,14 +230,16 @@ for control, observation in zip(controls, observations):
     best_state, particle_states, particle_weights = pfnet.forward(
         particle_states, particle_weights, observation, control)
 
-    states.append(best_state)
+    states.append(best_state.numpy())
 pf_states = np.array(states)
 
 # Plot trajectories
 plt.scatter(dead_reckoned_states[:, 0],
             dead_reckoned_states[:, 1], marker=".", label="Dead-reckoned")
-plt.scatter(true_states[:, 0], true_states[:, 1], marker=".", label="Ground-truth")
-plt.scatter(pf_states[:, 0], pf_states[:, 1], marker=".", label="Particle Filter")
+plt.scatter(true_states[:, 0], true_states[:, 1],
+            marker=".", label="Ground-truth")
+plt.scatter(pf_states[:, 0], pf_states[:, 1],
+            marker=".", label="Particle Filter")
 
 pf_states = particle_states.numpy()
 plt.scatter(pf_states[:, 0], pf_states[:, 1], marker=".", label="Particles")
