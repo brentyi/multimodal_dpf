@@ -52,8 +52,10 @@ class ParticleFilterNetwork(nn.Module):
             self.measurement_model(observation, states_pred)
 
         # Find best particle
-        best_index = torch.argmax(log_weights_pred)
-        best_state = states_pred[best_index]
+        # best_index = torch.argmax(log_weights_pred)
+        # best_state = states_pred[best_index]
+        log_weights_pred = log_weights_pred - torch.logsumexp(log_weights_pred, dim=0)
+        best_state = torch.sum(torch.exp(log_weights_pred[:,np.newaxis]) * states_pred, dim=0)
 
         # Re-sampling
         if self.soft_resample_alpha < 1.0:
@@ -72,7 +74,7 @@ class ParticleFilterNetwork(nn.Module):
             log_weights = log_weights_pred - torch.log(interpolated_weights)
 
             # Normalize weights
-            log_weights -= torch.logsumexp(log_weights, dim=0)
+            log_weights = log_weights - torch.logsumexp(log_weights, dim=0)
         else:
             # Standard particle filter re-sampling -- this kills gradients :(
             indices = torch.multinomial(
