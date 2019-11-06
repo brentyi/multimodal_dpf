@@ -22,6 +22,13 @@ class BeaconObserver:
         self.variances.append(variance)
 
     def forward(self, states, noisy=False):
+        #  Reshape arbitrary dimensions to (N, state_dim)
+        states = np.asarray(states)
+        orig_shape = states.shape
+        state_dim = orig_shape[-1]
+        states = states.reshape((-1, state_dim))
+        #
+
         N = states.shape[0]
         num_beacons = len(self.locations)
 
@@ -37,6 +44,11 @@ class BeaconObserver:
                 stddev = np.sqrt(variance)
                 output[:, i] += np.random.normal(scale=stddev, size=N)
 
+        # Put back into original shape
+        output_shape = list(orig_shape)
+        output_shape[-1] = len(self.locations)
+        output = output.reshape(output_shape)
+        #
         return output
 
 
@@ -46,22 +58,34 @@ class BeaconMeasurementModel(dpf.MeasurementModel):
         super(BeaconMeasurementModel, self).__init__()
         self.beacon_observer = beacon_observer
 
-    def forward(self, observation, states):
-        N = states.shape[0]
-        log_likelihoods = torch.zeros(N)
-        num_beacons = len(observation)
-        assert(num_beacons == len(self.beacon_observer.locations))
+    def forward(self, observations, states):
+        assert(len(observations.shape) == 2)  # (N, num_beacons)
+        assert(len(states.shape) == 3)  # (N, M, state_dim)
 
-        observations_pred = torch.from_numpy(
-            self.beacon_observer.forward(states.numpy()).astype(np.float32))
-        observations_error = observations_pred - observation[np.newaxis, :]
+        # N := distinct trajectory count
+        # M := particle count
+        N, M, _ = states.shape
+        _, num_beacons = observations.shape
+        assert num_beacons == len(self.beacon_observer.locations)
 
-        for i in range(num_beacons):
-            variance = self.beacon_observer.variances[i]
-            pdf = scipy.stats.multivariate_normal.pdf(
-                observations_error[:, i], cov=variance)
-            assert(pdf.shape == (N,))
-            log_likelihoods += torch.from_numpy(pdf.astype(np.float32))
+        with torch.no_grad():
+            log_likelihoods = torch.zeros((N, M))
+
+            observations_pred = torch.from_numpy(
+                self.beacon_observer.forward(states.numpy()).astype(np.float32))
+            assert observations_pred.shape == (N, M, num_beacons)
+
+            observations_error = observations_pred - observations[np.newaxis,:,:]
+            assert observations_error.shape == (N, M, num_beacons)
+
+            for i in range(num_beacons):
+                variance = self.beacon_observer.variances[i]
+                pdf = np.zeros((N,M))
+                for j in range(N):
+                    pdf[j] = scipy.stats.multivariate_normal.pdf(
+                        observations_error[j,:,i].numpy(), cov=variance)
+                assert(pdf.shape == (N,M))
+                log_likelihoods += torch.from_numpy(pdf.astype(np.float32))
 
         return log_likelihoods
 
@@ -71,72 +95,96 @@ class DeepBeaconMeasurementModel(dpf.MeasurementModel):
     def __init__(self):
         super(DeepBeaconMeasurementModel, self).__init__()
 
-        obs_dim = 2
+        obs_dim = 3
         state_dim = 3
 
         Activation = nn.LeakyReLU
-        hidden_units = 16
+        units = 16
         self.observation_layers = nn.Sequential(
-            nn.Linear(obs_dim, hidden_units),
+            nn.Linear(obs_dim, units),
             Activation(),
-            # nn.Linear(hidden_units, hidden_units)
+            # nn.Linear(units, units)
             # Activation(),
         )
         self.state_layers = nn.Sequential(
-            nn.Linear(state_dim, hidden_units),
+            nn.Linear(state_dim, units),
             Activation(),
-            # nn.Linear(hidden_units, hidden_units)
+            # nn.Linear(units, units)
             # Activation(),
         )
         self.shared_layers = nn.Sequential(
-            nn.Linear(hidden_units * 2, hidden_units),
+            nn.Linear(units * 2, units),
             Activation(),
-            nn.Linear(hidden_units, hidden_units),
+            nn.Linear(units, units),
             Activation(),
-            nn.Linear(hidden_units, hidden_units),
+            nn.Linear(units, units),
             Activation(),
-            nn.Linear(hidden_units, 1),
-            nn.LogSigmoid()
+            nn.Linear(units, 1),
+            # nn.LogSigmoid()
         )
 
-    def forward(self, observation, states):
-        assert(len(observation.shape) == 1)  # (obs_dim,)
-        assert(len(states.shape) == 2)  # (N, state_dim)
+        self.units = units
 
-        obs_dim = observation.shape[0]
-        batch_size = states.shape[0]
-        state_dim = states.shape[1]
+    def forward(self, observations, states):
+        assert(len(observations.shape) == 2)  # (N, obs_dim,)
+        assert(len(states.shape) == 3)  # (N, M, state_dim)
 
-        observation_features = self.observation_layers(
-            observation[np.newaxis, :])
+        # N := distinct trajectory count
+        # M := particle count
+
+        N, M, _ = states.shape
+
+        # (N, obs_dim) => (N, units)
+        observation_features = self.observation_layers(observations)
+        assert observation_features.shape == (N, self.units)
+
+        # (N, units) => (N, M, units)
+        observation_features = observation_features[:,np.newaxis,:].expand(N, M, self.units)
+        assert observation_features.shape == (N, M, self.units)
+
+        # (N, M, state_dim) => (N, M, units)
         state_features = self.state_layers(states)
+        assert state_features.shape == (N, M, self.units)
 
+        # (N, M, units * 2)
         merged_features = torch.cat(
-            (observation_features.expand(batch_size, -1), state_features),
-            dim=1)
+            (observation_features, state_features),
+            dim=2)
+        assert merged_features.shape == (N, M, self.units * 2)
 
+        # (N, M, units * 2) => (N, M, 1)
         log_likelihoods = self.shared_layers(merged_features)
+        assert log_likelihoods.shape == (N, M, 1)
 
-        return torch.squeeze(log_likelihoods, dim=1)
+        # Return (N, M)
+        return torch.squeeze(log_likelihoods, dim=2)
 
 
 class RobotDynamicsModel(dpf.DynamicsModel):
 
-    def forward(self, states_prev, control, noisy=False):
-        # Control: (v, omega)
-        N = len(states_prev)
-        assert(control.shape == (2,))
+    def forward(self, states_prev, controls, noisy=False):
+        # states_prev:  (N, M, state_dim)
+        # controls: (N, control_dim)
+        #
+        # N == distinct trajectory count
+        # M == particle count
 
-        v, omega = control
+        N, M, state_dim = states_prev.shape
+
+        v = controls[:, 0]
+        omega = controls[:, 1]
+        assert v.shape == (N,)
+        assert omega.shape == (N,)
+
         if noisy:
-            v_noise = np.random.normal(0, 0.1, size=N).astype(np.float32)
-            v = v + torch.from_numpy(v_noise)
-            omega_noise = np.random.normal(0, 0.05, size=N).astype(np.float32)
-            omega = omega + torch.from_numpy(omega_noise)
+            v_noise = np.random.normal(0, 0.1, size=(N,M)).astype(np.float32)
+            v = v[:,np.newaxis] + torch.from_numpy(v_noise).to(v.device)
+
+            omega_noise = np.random.normal(0, 0.05, size=(N,M)).astype(np.float32)
+            omega = omega[:,np.newaxis] + torch.from_numpy(omega_noise).to(omega.device)
 
         states = torch.zeros_like(states_prev)
-        states[:, 0] = states_prev[:, 0] + v * np.cos(states_prev[:, 2])
-        states[:, 1] = states_prev[:, 1] + v * np.sin(states_prev[:, 2])
-        states[:, 2] = states_prev[:, 2] = (
-            states_prev[:, 2] + omega) % (2 * np.pi)
+        states[:,:,0] = states_prev[:,:,0] + v * torch.cos(states_prev[:,:,2])
+        states[:,:,1] = states_prev[:,:,1] + v * torch.sin(states_prev[:,:,2])
+        states[:,:,2] = (states_prev[:,:,2] + omega) % (2 * np.pi)
         return states
