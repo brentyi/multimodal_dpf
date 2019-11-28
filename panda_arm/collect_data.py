@@ -10,14 +10,23 @@ from robosuite.wrappers import IKWrapper
 import waypoint_policies
 import recorder
 
+
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('target_path', type=str)
+    parser.add_argument('--policy', choices=['push', 'pull'], required=True)
+    parser.add_argument('--preview', action='store_true')
+    parser.add_argument('--visualize_observations', action='store_true')
+
+    args = parser.parse_args()
 
     ### <SETTINGS>
     # preview_mode = False
-    preview_mode = False
-    vis_images = False
-    record_name = "data/pullset-400.hdf5"
-    # output_file =
+    preview_mode = args.preview
+    vis_images = args.visualize_observations
+    target_path = args.target_path
+    policy_mode = args.policy
     ### </SETTINGS>
 
     if preview_mode:
@@ -37,7 +46,7 @@ if __name__ == "__main__":
         controller='position',
     )
 
-    recorder = recorder.ObservationRecorder(record_name)
+    recorder = recorder.ObservationRecorder(target_path)
 
     for rollout_index in range(400):
         obs = env.reset()
@@ -49,8 +58,12 @@ if __name__ == "__main__":
         env.controller.last_goal_orientation = np.eye(3)
 
         # Initialize training policy
-        # policy = waypoint_policies.PushWaypointPolicy()
-        policy = waypoint_policies.PullWaypointPolicy()
+        if policy_mode == "push":
+            policy = waypoint_policies.PushWaypointPolicy()
+        elif policy_mode == "pull":
+            policy = waypoint_policies.PullWaypointPolicy()
+        else:
+            assert False
 
         # Set initial joint and door position
         initial_joints, initial_door = policy.get_initial_state()
@@ -62,6 +75,7 @@ if __name__ == "__main__":
 
         if vis_images:
             plt.figure()
+            plt.gca().invert_yaxis()
             plt.ion()
             plt.show()
 
@@ -97,6 +111,8 @@ if __name__ == "__main__":
                     termination_cause = "closed door"
                     break
 
+            assert 'image' not in obs or obs['image'].dtype == np.uint8
+
             recorder.push(obs)
             ### obs keys:
             # 'joint_pos'
@@ -114,8 +130,6 @@ if __name__ == "__main__":
             # 'ee-torque-obs'
             # 'object-state'
             # 'image'
-
-        recorder.save()
 
         if i == max_iteration_count - 1:
             termination_cause = "max iteration"

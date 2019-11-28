@@ -7,12 +7,15 @@ import h5py
 
 
 class ObservationRecorder:
-    def __init__(self, path):
+    def __init__(self, path, single_precision_floats=True):
+        # Meta
+        self.path = path
+        self.single_precision_floats = single_precision_floats
+
         # Maps observation key => observation list
         self.obs_dict = {}
-        self.path = path
 
-        # How many trajectories are currently in our HDF5 file?
+        # Count the number of trajectories that already exist
         self.trajectory_prefix = "trajectory"
         with self._h5py_file() as f:
             if len(f.keys()) > 0:
@@ -21,7 +24,7 @@ class ObservationRecorder:
                 self.trajectory_count = max(ids) + 1
             else:
                 self.trajectory_count = 0
-            assert type(self.trajectory_count) == int
+        assert type(self.trajectory_count) == int
 
     def push(self, obs):
         for key, value in obs.items():
@@ -40,6 +43,11 @@ class ObservationRecorder:
             for key, obs_list in self.obs_dict.items():
                 # Convert list of observations to a numpy array
                 data = np.array(obs_list)
+
+                # Compress floats
+                if data.type == np.float64 and self.single_precision_floats:
+                    data = data.astype(np.float32)
+
                 group.create_dataset(key, data=data, chunks=True)
 
         self.obs_dict = {}
