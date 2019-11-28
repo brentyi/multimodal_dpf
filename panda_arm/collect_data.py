@@ -137,3 +137,6 @@ if __name__ == "__main__":
             "Terminated rollout #{}: {}".format(
                 rollout_index,
                 termination_cause))
+
+        recorder.save()
+

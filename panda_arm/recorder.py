@@ -45,7 +45,7 @@ class ObservationRecorder:
                 data = np.array(obs_list)
 
                 # Compress floats
-                if data.type == np.float64 and self.single_precision_floats:
+                if data.dtype == np.float64 and self.single_precision_floats:
                     data = data.astype(np.float32)
 
                 group.create_dataset(key, data=data, chunks=True)
