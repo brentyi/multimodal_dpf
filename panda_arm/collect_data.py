@@ -7,8 +7,8 @@ import robosuite
 import robosuite.utils.transform_utils as T
 from robosuite.wrappers import IKWrapper
 
-import waypoint_policies
-import recorder
+from lib import waypoint_policies
+from lib import file_utils
 
 
 if __name__ == "__main__":
@@ -22,7 +22,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ### <SETTINGS>
-    # preview_mode = False
     preview_mode = args.preview
     vis_images = args.visualize_observations
     target_path = args.target_path
@@ -46,11 +45,10 @@ if __name__ == "__main__":
         controller='position',
     )
 
-    recorder = recorder.ObservationRecorder(target_path)
+    trajectories_file = file_utils.TrajectoriesFile(target_path)
 
-    for rollout_index in range(400):
+    for rollout_index in range(100):
         obs = env.reset()
-        # env.viewer.set_camera(camera_id=0)
         if preview_mode:
             env.render()
         env.controller.step = 0.
@@ -113,7 +111,7 @@ if __name__ == "__main__":
 
             assert 'image' not in obs or obs['image'].dtype == np.uint8
 
-            recorder.push(obs)
+            trajectories_file.add_timestep(obs)
             ### obs keys:
             # 'joint_pos'
             # 'joint_vel'
@@ -138,5 +136,5 @@ if __name__ == "__main__":
                 rollout_index,
                 termination_cause))
 
-        recorder.save()
+        trajectories_file.end_trajectory()
 
