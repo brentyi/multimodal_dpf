@@ -23,8 +23,6 @@ def load_trajectories(*paths, use_vision=True, vision_interval=10, use_proprioce
                     trajectory['eef_pos'],
                     trajectory['eef_quat'],
                 ), axis=1)
-                if not use_proprioception:
-                    observations['gripper_sensors'][:] = 0
                 observations['gripper_sensors'] = np.concatenate((
                     trajectory['contact-obs'][:, np.newaxis],
                     trajectory['ee-force-obs'],
@@ -56,6 +54,9 @@ def load_trajectories(*paths, use_vision=True, vision_interval=10, use_proprioce
                     assert len(control.shape) == 2
                     controls.append(control)
                 controls = np.concatenate(controls, axis=1)
+
+                if not use_proprioception:
+                    controls[:] = 0
 
                 timesteps = len(states)
                 assert len(controls) == timesteps

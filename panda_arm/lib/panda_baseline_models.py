@@ -8,9 +8,10 @@ from . import resblocks
 
 class PandaBaselineModel(nn.Module):
 
-    def __init__(self, units=16):
+    def __init__(self, use_prev_state=True, units=16):
         super().__init__()
 
+        self.use_prev_state = use_prev_state
         self.units = units
 
         obs_pose_dim = 7
@@ -65,7 +66,10 @@ class PandaBaselineModel(nn.Module):
         N, control_dim = controls.shape
 
         # Construct state features
-        state_features = self.state_layers(states_prev)
+        if self.use_prev_state:
+            state_features = self.state_layers(states_prev)
+        else:
+            state_features = self.state_layers(torch.zeros_like(states_prev))
 
         # Construct observation features
         # (N, obs_dim)
