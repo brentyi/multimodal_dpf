@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from . import resblocks
-from . import file_utils
 from . import dpf
 
 
@@ -13,7 +12,7 @@ class PandaDynamicsModel(dpf.DynamicsModel):
     def __init__(self, state_noise=(0.1, 0.05)):
         super().__init__()
 
-        state_dim = 3
+        state_dim = 2
         control_dim = 20
 
         self.state_noise = state_noise
@@ -40,8 +39,8 @@ class PandaDynamicsModel(dpf.DynamicsModel):
         # states_prev:  (N, M, state_dim)
         # controls: (N, control_dim)
 
-        assert(len(states_prev.shape) == 3)  # (N, M, state_dim)
-        assert(len(controls.shape) == 2)  # (N, control_dim,)
+        assert len(states_prev.shape) == 3 # (N, M, state_dim)
+        assert len(controls.shape) == 2 # (N, control_dim,)
 
         # N := distinct trajectory count
         # M := particle count
@@ -118,7 +117,7 @@ class PandaMeasurementModel(dpf.MeasurementModel):
             nn.Identity(),
         )
 
-        self.shared_observation_layers = nn.Sequential(
+        self.shared_layers = nn.Sequential(
             nn.Linear(units * 3 + state_dim, units),
             nn.ReLU(inplace=True),
             resblocks.Linear(units),
@@ -130,8 +129,8 @@ class PandaMeasurementModel(dpf.MeasurementModel):
         self.units = units
 
     def forward(self, observations, states):
-        assert(type(observations.shape) == dict)
-        assert(len(states.shape) == 3)  # (N, M, state_dim)
+        assert type(observations) == dict
+        assert len(states.shape) == 3  # (N, M, state_dim)
 
         # N := distinct trajectory count
         # M := particle count
