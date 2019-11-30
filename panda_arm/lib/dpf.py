@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import abc
 
+from . import torch_utils
+
 def gmm_loss(particle_states, log_weights, true_states):
 
     true_states = batch_states[:,t,:]
@@ -39,8 +41,7 @@ def gmm_loss(particle_states, log_weights, true_states):
 
 class ParticleFilterDataset(torch.utils.data.Dataset):
     """
-    A customized data preprocessor for trajectories
-
+    A data preprocessor for producing particle sets from trajectories
     """
     def __init__(self, trajectories, subsequence_length=20, particle_count=200, particle_variances=None):
         """ Initialize the dataset. We chop our list of trajectories into a set of subsequences.
@@ -54,35 +55,24 @@ class ParticleFilterDataset(torch.utils.data.Dataset):
         subsequences = []
 
         # Chop up each trajectory into overlapping subsequences
-        for traj in trajectories:
-            assert len(traj) == 3
-            states, obs, controls = traj
+        for trajectory in trajectories:
+            assert len(trajectory) == 3
+            states, observation, controls = trajectory
 
-            assert len(states) == len(obs) and len(obs) == len(controls)
-            traj_length = len(states)
+            assert len(states) == len(observation) and len(observation) == len(controls)
+            trajectory_length = len(states)
 
-            sections = traj_length // subsequence_length
+            sections = trajectory_length // subsequence_length
             def split(x):
                 new_length = (len(x) // subsequence_length) * subsequence_length
                 x = x[:new_length]
                 return np.split(x[:new_length], sections)
 
-            for s, o, c in zip(split(states), split(obs), split(controls)):
+            for s, o, c in zip(split(states), split(observation), split(controls)):
                 # Numpy => Torch
-                s = torch.from_numpy(s).float()
-                if type(o) == np.ndarray:
-                    # If the observation is a standard numpy array
-                    o = torch.from_numpy(o).float()
-                elif type(o) == dict:
-                    # If the observation is a dict of arrays
-                    new_o = {}
-                    for key, value in o.items():
-                        assert type(value) == np.ndarray
-                        new_o[key] = torch.from_numpy(value).float()
-                    o = new_o
-                else:
-                    assert False, "invalid observation type!"
-                c = torch.from_numpy(c).float()
+                s = torch_utils.to_torch(s)
+                o = torch_utils.to_torch(o)
+                c = torch_utils.to_torch(c)
 
                 # Add to subsequences
                 subsequences.append((s, o, c))
@@ -103,9 +93,9 @@ class ParticleFilterDataset(torch.utils.data.Dataset):
         """ Get a subsequence from our dataset
         """
 
-        states, obs, controls = self.subsequences[index]
+        states, observation, controls = self.subsequences[index]
 
-        traj_length, state_dim = states.shape
+        trajectory_length, state_dim = states.shape
         initial_state = states[0]
 
         # Generate noisy states as initial particles
@@ -115,7 +105,7 @@ class ParticleFilterDataset(torch.utils.data.Dataset):
         initial_particles = initial_particles + initial_state
 
         # return image and label
-        return initial_particles, states, obs, controls
+        return initial_particles, states, observation, controls
 
     def __len__(self):
         """
