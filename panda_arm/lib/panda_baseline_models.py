@@ -8,10 +8,16 @@ from . import resblocks
 
 class PandaBaselineModel(nn.Module):
 
-    def __init__(self):
+    def __init__(self, units=16):
         super().__init__()
 
-        units = 16
+        self.units = units
+
+        obs_pose_dim = 7
+        obs_sensors_dim = 7
+        state_dim = 2
+        control_dim = 20
+
         self.state_layers = nn.Sequential(
             nn.Linear(state_dim, units // 2),
             nn.ReLU(inplace=True),
@@ -26,10 +32,10 @@ class PandaBaselineModel(nn.Module):
             nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             resblocks.Conv2d(channels=4),
-            nn.Conv2d(in_channels=3, out_channels=1, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=4, out_channels=1, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.Flatten(),  # 16 * 16 = 256
-            nn.Linear(256, units),
+            nn.Flatten(),  # 32 * 32 = 1024
+            nn.Linear(1024, units),
             nn.ReLU(inplace=True),
             resblocks.Linear(units),
         )
@@ -52,19 +58,19 @@ class PandaBaselineModel(nn.Module):
 
     def forward(self, states_prev, observations, controls):
         assert type(observations) == dict  # (N, {})
-        assert len(states.shape) == 2  # (N, state_dim)
+        assert len(states_prev.shape) == 2  # (N, state_dim)
         assert len(controls.shape) == 2  # (N, control_dim,)
 
-        N, state_dim = states.shape
+        N, state_dim = states_prev.shape
         N, control_dim = controls.shape
 
         # Construct state features
-        state_features = self.state_layers(states)
+        state_features = self.state_layers(states_prev)
 
         # Construct observation features
         # (N, obs_dim)
         observation_features = torch.cat((
-            self.observation_image_layers(observations['image']),
+            self.observation_image_layers(observations['image'][:,np.newaxis,:,:]),
             self.observation_pose_layers(observations['gripper_pose']),
             self.observation_sensors_layers(observations['gripper_sensors']),
         ), dim=1)

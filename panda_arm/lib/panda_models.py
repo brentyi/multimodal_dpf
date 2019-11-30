@@ -9,7 +9,7 @@ from . import dpf
 
 class PandaDynamicsModel(dpf.DynamicsModel):
 
-    def __init__(self, state_noise=(0.1, 0.05)):
+    def __init__(self, state_noise=(0.1, 0.05), units=16):
         super().__init__()
 
         state_dim = 2
@@ -17,7 +17,6 @@ class PandaDynamicsModel(dpf.DynamicsModel):
 
         self.state_noise = state_noise
 
-        units = 16
         self.state_layers = nn.Sequential(
             nn.Linear(state_dim, units // 2),
             resblocks.Linear(units // 2),

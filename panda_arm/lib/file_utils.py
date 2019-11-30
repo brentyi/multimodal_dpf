@@ -9,7 +9,7 @@ import h5py
 def load_trajectories(path):
     trajectories = []
 
-    with file_utils.TrajectoriesFile(path) as f:
+    with TrajectoriesFile(path) as f:
         # Iterate over each trajectory
         for trajectory in f:
             # Pull out trajectory states -- this is just door position &

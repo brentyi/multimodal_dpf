@@ -22,7 +22,7 @@ class AbstractResBlock(nn.Module, abc.ABC):
         x = self.block1(x)
         x = self.activation(x)
         x = self.block2(x)
-        assert x.shape == residual.shape
+        assert x.shape[0] == residual.shape[0]
         x += residual
         x = self.activation(x)
         return x
