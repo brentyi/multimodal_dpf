@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
+import torch.utils.tensorboard
 
 class TrainingBuddy:
     def __init__(self, name, model, load_checkpoint=True):

@@ -11,15 +11,15 @@ class PandaSimpleDataset(torch.utils.data.Dataset):
     A customized data preprocessor for trajectories
     """
 
-    def __init__(self, path, use_vision=True, use_vision_every=10,
-                 use_proprioception=True, use_prev_states=True):
+    def __init__(self, *paths, **kwargs):
         """
         Input:
-          path: path to dataset hdf5 file
+          *paths: paths to dataset hdf5 files
         """
 
-        trajectories = file_utils.load_trajectories(path)
-        self.dataset = []
+        trajectories = file_utils.load_trajectories(*paths, **kwargs)
+        active_dataset = []
+        inactive_dataset = []
         for trajectory in trajectories:
             assert len(trajectory) == 3
             states, observations, controls = trajectory
@@ -32,20 +32,23 @@ class PandaSimpleDataset(torch.utils.data.Dataset):
                 # Pull out data & labels
                 prev_state = states[t - 1]
                 observation = torch_utils.DictIndexWrapper(observations)[t]
-                if not use_prev_states:
-                    prev_state[:] = 0
-                if not use_vision or t % use_vision_every == 1:
-                    observation['image'][:] = 0
-                if not use_proprioception:
-                    observation['gripper_pose'][:] = 0
-                    observation['gripper_sensors'][:] = 0
                 control = controls[t]
                 new_state = states[t]
 
                 # Construct sample, bring to torch, & add to dataset
                 sample = (prev_state, observation, control, new_state)
                 sample = tuple(torch_utils.to_torch(x) for x in sample)
-                self.dataset.append(sample)
+
+                if np.linalg.norm(new_state - prev_state) > 1e-5 and new_state[0] >= 1e-5:
+                    active_dataset.append(sample)
+                else:
+                    inactive_dataset.append(sample)
+
+        print("Parsed data: {} active, {} inactive".format(len(active_dataset), len(inactive_dataset)))
+        keep_count = min(len(active_dataset) // 2, len(inactive_dataset))
+        print("Keeping:", keep_count)
+        np.random.shuffle(inactive_dataset)
+        self.dataset = active_dataset + inactive_dataset[:keep_count]
 
     def __getitem__(self, index):
         """ Get a subsequence from our dataset

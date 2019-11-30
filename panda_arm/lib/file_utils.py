@@ -6,53 +6,62 @@ import numpy as np
 import h5py
 
 
-def load_trajectories(path):
+def load_trajectories(*paths, use_vision=True, vision_interval=10, use_proprioception=True):
     trajectories = []
 
-    with TrajectoriesFile(path) as f:
-        # Iterate over each trajectory
-        for trajectory in f:
-            # Pull out trajectory states -- this is just door position &
-            # velocity
-            states = trajectory['object-state'][:, 1:3]
+    for path in paths:
+        with TrajectoriesFile(path) as f:
+            # Iterate over each trajectory
+            for trajectory in f:
+                # Pull out trajectory states -- this is just door position &
+                # velocity
+                states = trajectory['object-state'][:, 1:3]
 
-            # Pull out observation states
-            observations = {}
-            observations['gripper_pose'] = np.concatenate((
-                trajectory['eef_pos'],
-                trajectory['eef_quat'],
-            ), axis=1)
-            observations['gripper_sensors'] = np.concatenate((
-                trajectory['contact-obs'][:, np.newaxis],
-                trajectory['ee-force-obs'],
-                trajectory['ee-torque-obs'],
-            ), axis=1)
-            observations['image'] = trajectory['image']
+                # Pull out observation states
+                observations = {}
+                observations['gripper_pose'] = np.concatenate((
+                    trajectory['eef_pos'],
+                    trajectory['eef_quat'],
+                ), axis=1)
+                if not use_proprioception:
+                    observations['gripper_sensors'][:] = 0
+                observations['gripper_sensors'] = np.concatenate((
+                    trajectory['contact-obs'][:, np.newaxis],
+                    trajectory['ee-force-obs'],
+                    trajectory['ee-torque-obs'],
+                ), axis=1)
+                if not use_proprioception:
+                    observations['gripper_pose'][:] = 0
+                    observations['gripper_sensors'][:] = 0
 
-            # Pull out control states
-            control_keys = [
-                'eef_pos',
-                'eef_quat',
-                'eef_vlin',
-                'eef_vang',
-                'ee-force-obs',
-                'ee-torque-obs',
-                'contact-obs'
-            ]
-            controls = []
-            for key in control_keys:
-                control = trajectory[key]
-                if len(control.shape) == 1:
-                    control = control[:, np.newaxis]
-                assert len(control.shape) == 2
-                controls.append(control)
-            controls = np.concatenate(controls, axis=1)
+                observations['image'] = np.zeros_like(trajectory['image'])
+                if use_vision:
+                    observations['image'][::vision_interval] = trajectory['image'][::vision_interval]
 
-            timesteps = len(states)
-            assert len(controls) == timesteps
-            assert len(observations['image']) == timesteps
+                # Pull out control states
+                control_keys = [
+                    'eef_pos',
+                    'eef_quat',
+                    'eef_vlin',
+                    'eef_vang',
+                    'ee-force-obs',
+                    'ee-torque-obs',
+                    'contact-obs'
+                ]
+                controls = []
+                for key in control_keys:
+                    control = trajectory[key]
+                    if len(control.shape) == 1:
+                        control = control[:, np.newaxis]
+                    assert len(control.shape) == 2
+                    controls.append(control)
+                controls = np.concatenate(controls, axis=1)
 
-            trajectories.append((states, observations, controls))
+                timesteps = len(states)
+                assert len(controls) == timesteps
+                assert len(observations['image']) == timesteps
+
+                trajectories.append((states, observations, controls))
 
     return trajectories
 
