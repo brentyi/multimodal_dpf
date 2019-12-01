@@ -7,6 +7,86 @@ from . import resblocks
 from . import dpf
 
 
+class PandaAltDynamicsModel(dpf.DynamicsModel):
+
+    def __init__(self, state_noise=(0.02, 0.002), units=16):
+        super().__init__()
+
+        state_dim = 2
+        control_dim = 20
+
+        self.state_noise = state_noise
+
+        self.state_layers = nn.Sequential(
+            nn.Linear(state_dim, units // 2),
+            resblocks.Linear(units // 2),
+        )
+        self.control_layers = nn.Sequential(
+            nn.Linear(control_dim, units // 2),
+            resblocks.Linear(units // 2),
+        )
+        self.shared_layers = nn.Sequential(
+            resblocks.Linear(units),
+            resblocks.Linear(units, bottleneck_units=units // 2),
+            resblocks.Linear(units),
+            nn.Linear(units, 1),
+        )
+
+        self.units = units
+
+    def forward(self, states_prev, controls, noisy=False):
+        # states_prev:  (N, M, state_dim)
+        # controls: (N, control_dim)
+
+        assert len(states_prev.shape) == 3  # (N, M, state_dim)
+        assert len(controls.shape) == 2  # (N, control_dim,)
+
+        # N := distinct trajectory count
+        # M := particle count
+        N, M, state_dim = states_prev.shape
+
+        # (N, control_dim) => (N, units // 2)
+        control_features = self.control_layers(controls)
+        assert control_features.shape == (N, self.units // 2)
+
+        # (N, units // 2) => (N, M, units // 2)
+        control_features = control_features[:, np.newaxis, :].expand(
+            N, M, self.units // 2)
+        assert control_features.shape == (N, M, self.units // 2)
+
+        # (N, M, state_dim) => (N, M, units // 2)
+        state_features = self.state_layers(states_prev)
+        assert state_features.shape == (N, M, self.units // 2)
+
+        # (N, M, units)
+        merged_features = torch.cat(
+            (control_features, state_features),
+            dim=2)
+        assert merged_features.shape == (N, M, self.units)
+
+        # (N, M, units * 2) => (N, M, 1)
+        new_velocity = self.shared_layers(merged_features)
+        assert new_velocity.shape == (N, M, 1)
+
+        # Compute new states
+        # states_new = states_prev + state_update
+        states_new = torch.zeros_like(states_prev)
+        states_new[:, :, 0] = states_prev[:, :, 0] + states_prev[:, :, 1] / 20.
+        states_new[:, :, 1:2] = new_velocity
+        assert states_new.shape == (N, M, state_dim)
+
+        # Add noise if desired
+        if noisy:
+            dist = torch.distributions.Normal(
+                torch.tensor([0.]), torch.tensor(self.state_noise))
+            noise = dist.sample((N, M)).to(states_new.device)
+            assert noise.shape == (N, M, state_dim)
+            states_new = states_new + noise
+
+        # Return (N, M, state_dim)
+        return states_new
+
+
 class PandaDynamicsModel(dpf.DynamicsModel):
 
     def __init__(self, state_noise=(0.02, 0.002), units=16):
@@ -64,7 +144,7 @@ class PandaDynamicsModel(dpf.DynamicsModel):
             dim=2)
         assert merged_features.shape == (N, M, self.units)
 
-        # (N, M, units * 2) => (N, M, 1)
+        # (N, M, units * 2) => (N, M, state_dim)
         state_update = self.shared_layers(merged_features)
         assert state_update.shape == (N, M, state_dim)
 
