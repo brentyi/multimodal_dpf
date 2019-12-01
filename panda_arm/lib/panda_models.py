@@ -27,7 +27,8 @@ class PandaAltDynamicsModel(dpf.DynamicsModel):
         )
         self.shared_layers = nn.Sequential(
             resblocks.Linear(units),
-            resblocks.Linear(units, bottleneck_units=units // 2),
+            resblocks.Linear(units),
+            resblocks.Linear(units),
             resblocks.Linear(units),
             nn.Linear(units, 1),
         )

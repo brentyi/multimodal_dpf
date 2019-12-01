@@ -144,7 +144,6 @@ def to_torch(x, device='cpu'):
         # Convert lists of values
         output = []
         for value in x:
-            print(value)
             output.append(to_torch(value, device))
     else:
         assert False, "Invalid datatype {}!".format(type(x))
