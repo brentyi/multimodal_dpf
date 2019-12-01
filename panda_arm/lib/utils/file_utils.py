@@ -31,8 +31,7 @@ def load_trajectories(*paths, use_vision=True,
                 #   'object-state'
                 #   'image'
 
-                # Pull out trajectory states -- this is just door position &
-                # velocity
+                # Pull out trajectory states -- this is just door position
                 states = trajectory['object-state'][:, 1:3]
 
                 # Pull out observation states

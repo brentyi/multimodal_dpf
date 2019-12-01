@@ -9,7 +9,7 @@ from . import dpf
 
 class PandaAltDynamicsModel(dpf.DynamicsModel):
 
-    def __init__(self, state_noise=(0.02, 0.002), units=16):
+    def __init__(self, state_noise=(0.0, 0.002), units=16):
         super().__init__()
 
         state_dim = 2
@@ -71,9 +71,9 @@ class PandaAltDynamicsModel(dpf.DynamicsModel):
 
         # Compute new states
         # states_new = states_prev + state_update
-        states_new = torch.zeros_like(states_prev)
-        states_new[:, :, 0] = states_prev[:, :, 0] + states_prev[:, :, 1] / 20.
-        states_new[:, :, 1:2] = new_velocity
+        states_new = states_prev.clone()
+        states_new[:, :, 0] += states_prev[:, :, 1] / 20.
+        states_new[:, :, 1:2] += new_velocity * 0.
         assert states_new.shape == (N, M, state_dim)
 
         # Add noise if desired
