@@ -3,6 +3,7 @@ import numpy as np
 
 from . import dpf
 from .utils import torch_utils
+from .utils import misc_utils
 from .utils import file_utils
 
 
@@ -31,7 +32,7 @@ class PandaSimpleDataset(torch.utils.data.Dataset):
             for t in range(1, timesteps):
                 # Pull out data & labels
                 prev_state = states[t - 1]
-                observation = torch_utils.DictIterator(observations)[t]
+                observation = misc_utils.DictIterator(observations)[t]
                 control = controls[t]
                 new_state = states[t]
 

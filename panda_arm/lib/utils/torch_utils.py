@@ -7,9 +7,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.utils.tensorboard
 
+from . import misc_utils
 
 class TrainingBuddy:
-    def __init__(self, name, model, load_checkpoint=True,
+    def __init__(self, name, model, optimizer_names=["primary"], load_checkpoint=True,
                  log_dir="logs", checkpoint_dir="checkpoints"):
         # CUDA boilerplate
         if torch.cuda.is_available():
@@ -20,26 +21,37 @@ class TrainingBuddy:
         print("Using device:", self._device)
         torch.autograd.set_detect_anomaly(True)
 
-        # Misc stuff
+        # Training boilerplate
         assert isinstance(model, nn.Module)
         self._name = name
         self._model = model
         self._writer = torch.utils.tensorboard.SummaryWriter(
             log_dir + "/" + name)
-        self._optimizer = optim.Adadelta(self._model.parameters())
         self._checkpoint_dir = checkpoint_dir
         self._steps = 0
 
+        # Create optimizers -- we might want to use a different one for each
+        # loss function
+        self._optimizers = {}
+        for name in optimizer_names:
+            self._optimizers[name] = optim.Adadelta(self._model.parameters())
+
+        # Load checkpoint using model name
         if load_checkpoint:
             self.load_checkpoint()
 
-    def minimize(self, loss, retain_graph=False, checkpoint_interval=1000):
-        self._optimizer.zero_grad()
+    def minimize(self, loss, retain_graph=False,
+                 optimizer_name="primary", checkpoint_interval=1000):
+
+        assert optimizer_name in self._optimizers.keys()
+
+        # Take gradient step
+        self._optimizers[optimizer_name].zero_grad()
         loss.backward(retain_graph=retain_graph)
-        self._optimizer.step()
+        self._optimizers[optimizer_name].step()
 
+        # Update step & checkpoint
         self._steps += 1
-
         if self._steps % checkpoint_interval == 0:
             self.save_checkpoint()
 
@@ -51,9 +63,13 @@ class TrainingBuddy:
             path = "{}/{}-{}.ckpt".format(self._checkpoint_dir,
                                           self._name, self._steps)
 
+        optimizer_states = {}
+        for name, optimizer in self._optimizers.items():
+            optimizer_states[name] = optimizer.state_dict()
+
         state = {
             'state_dict': self._model.state_dict(),
-            'optimizer': self._optimizer.state_dict(),
+            'optimizers': optimizer_states,
             'steps': self._steps
         }
         torch.save(state, path)
@@ -84,7 +100,10 @@ class TrainingBuddy:
             state = torch.load(path)
 
         self._model.load_state_dict(state['state_dict'])
-        self._optimizer.load_state_dict(state['optimizer'])
+
+        for name, state_dict in state['optimizers'].items():
+            self._optimizers[name].load_state_dict(state_dict)
+
         self._steps = state['steps']
 
         print("Loaded checkpoint from path:", path)

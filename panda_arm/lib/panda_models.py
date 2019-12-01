@@ -9,7 +9,7 @@ from . import dpf
 
 class PandaDynamicsModel(dpf.DynamicsModel):
 
-    def __init__(self, state_noise=(0.1, 0.05), units=16):
+    def __init__(self, state_noise=(0.02, 0.002), units=16):
         super().__init__()
 
         state_dim = 2
@@ -69,7 +69,8 @@ class PandaDynamicsModel(dpf.DynamicsModel):
         assert state_update.shape == (N, M, state_dim)
 
         # Compute new states
-        states_new = states_prev + state_update
+        # states_new = states_prev + state_update
+        states_new = state_update
         assert states_new.shape == (N, M, state_dim)
 
         # Add noise if desired

@@ -202,8 +202,8 @@ class ParticleFilterNetwork(nn.Module):
         self.freeze_dynamics_model = False
         self.freeze_measurement_model = False
 
-    def forward(self, states_prev, log_weights_prev,
-                observations, controls, resample=True, state_estimation_method="weighted_average"):
+    def forward(self, states_prev, log_weights_prev, observations, controls,
+                resample=True, state_estimation_method="weighted_average", noisy_dynamics=True):
         # states_prev: (N, M, *)
         # log_weights_prev: (N, M)
         # observations: (N, *)
@@ -216,7 +216,8 @@ class ParticleFilterNetwork(nn.Module):
         assert log_weights_prev.shape == (N, M)
 
         # Dynamics update
-        states_pred = self.dynamics_model(states_prev, controls, noisy=True)
+        states_pred = self.dynamics_model(
+            states_prev, controls, noisy=noisy_dynamics)
         if self.freeze_dynamics_model:
             # Don't backprop through frozen models
             states_pred = states_pred.detach()
@@ -237,7 +238,8 @@ class ParticleFilterNetwork(nn.Module):
                 torch.exp(log_weights_pred[:, :, np.newaxis]) * states_pred, dim=1)
         elif state_estimation_method == "argmax":
             best_indices = torch.argmax(log_weights_pred, dim=1)
-            state_estimates = torch.gather(states_pred, dim=1, index=best_indices)
+            state_estimates = torch.gather(
+                states_pred, dim=1, index=best_indices)
         else:
             assert False, "Invalid state estimation method!"
 
