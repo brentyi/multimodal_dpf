@@ -39,8 +39,8 @@ class AbstractResBlock(nn.Module, abc.ABC):
 class Linear(AbstractResBlock):
     default_activation = "relu"
 
-    def __init__(self, units, bottleneck_units=None):
-        super().__init__()
+    def __init__(self, units, bottleneck_units=None, **kwargs):
+        super().__init__(**kwargs)
 
         if bottleneck_units is None:
             bottleneck_units = units
@@ -53,8 +53,8 @@ class Conv2d(AbstractResBlock):
     default_kernel_size = 3
 
     def __init__(self, channels, bottleneck_channels=None,
-                 kernel_size=None):
-        super().__init__()
+                 kernel_size=None, **kwargs):
+        super().__init__(**kwargs)
 
         if bottleneck_channels is None:
             bottleneck_channels = channels

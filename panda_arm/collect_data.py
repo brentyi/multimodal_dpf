@@ -112,22 +112,6 @@ if __name__ == "__main__":
             assert 'image' not in obs or obs['image'].dtype == np.uint8
 
             trajectories_file.add_timestep(obs)
-            ### obs keys:
-            # 'joint_pos'
-            # 'joint_vel'
-            # 'gripper_qpos'
-            # 'gripper_qvel'
-            # 'eef_pos'
-            # 'eef_quat'
-            # 'eef_vlin'
-            # 'eef_vang'
-            # 'robot-state'
-            # 'prev-act'
-            # 'contact-obs'
-            # 'ee-force-obs'
-            # 'ee-torque-obs'
-            # 'object-state'
-            # 'image'
 
         if i == max_iteration_count - 1:
             termination_cause = "max iteration"
@@ -136,5 +120,5 @@ if __name__ == "__main__":
                 rollout_index,
                 termination_cause))
 
-        trajectories_file.end_trajectory()
-
+        with trajectories_file:
+            trajectories_file.end_trajectory()

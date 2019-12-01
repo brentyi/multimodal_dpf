@@ -38,8 +38,8 @@ class PandaDynamicsModel(dpf.DynamicsModel):
         # states_prev:  (N, M, state_dim)
         # controls: (N, control_dim)
 
-        assert len(states_prev.shape) == 3 # (N, M, state_dim)
-        assert len(controls.shape) == 2 # (N, control_dim,)
+        assert len(states_prev.shape) == 3  # (N, M, state_dim)
+        assert len(controls.shape) == 2  # (N, control_dim,)
 
         # N := distinct trajectory count
         # M := particle count
@@ -99,8 +99,8 @@ class PandaMeasurementModel(dpf.MeasurementModel):
             resblocks.Conv2d(channels=3),
             nn.Conv2d(in_channels=3, out_channels=1, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.Flatten(),  # 16 * 16 = 256
-            nn.Linear(256, units),
+            nn.Flatten(),  # 32 * 32 = 1024
+            nn.Linear(1024, units),
             nn.ReLU(inplace=True),
             resblocks.Linear(units),
         )
@@ -113,11 +113,11 @@ class PandaMeasurementModel(dpf.MeasurementModel):
             resblocks.Linear(units),
         )
         self.state_layers = nn.Sequential(
-            nn.Identity(),
+            nn.Linear(state_dim, units),
         )
 
         self.shared_layers = nn.Sequential(
-            nn.Linear(units * 3 + state_dim, units),
+            nn.Linear(units * 4, units),
             nn.ReLU(inplace=True),
             resblocks.Linear(units),
             resblocks.Linear(units),
@@ -139,7 +139,8 @@ class PandaMeasurementModel(dpf.MeasurementModel):
         # Construct observations feature vector
         # (N, obs_dim)
         observation_features = torch.cat((
-            self.observation_image_layers(observations['image']),
+            self.observation_image_layers(
+                observations['image'][:, np.newaxis, :, :]),
             self.observation_pose_layers(observations['gripper_pose']),
             self.observation_sensors_layers(observations['gripper_sensors']),
         ), dim=1)

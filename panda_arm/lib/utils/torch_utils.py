@@ -7,8 +7,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.utils.tensorboard
 
+
 class TrainingBuddy:
-    def __init__(self, name, model, load_checkpoint=True):
+    def __init__(self, name, model, load_checkpoint=True,
+                 log_dir="logs", checkpoint_dir="checkpoints"):
         # CUDA boilerplate
         if torch.cuda.is_available():
             self._device = torch.device("cuda")
@@ -22,26 +24,32 @@ class TrainingBuddy:
         assert isinstance(model, nn.Module)
         self._name = name
         self._model = model
-        self._writer = torch.utils.tensorboard.SummaryWriter("logs/" + name)
+        self._writer = torch.utils.tensorboard.SummaryWriter(
+            log_dir + "/" + name)
         self._optimizer = optim.Adadelta(self._model.parameters())
+        self._checkpoint_dir = checkpoint_dir
         self._steps = 0
 
         if load_checkpoint:
             self.load_checkpoint()
 
-    def minimize(self, loss, retain_graph=False):
+    def minimize(self, loss, retain_graph=False, checkpoint_interval=1000):
         self._optimizer.zero_grad()
         loss.backward(retain_graph=retain_graph)
         self._optimizer.step()
 
         self._steps += 1
 
+        if self._steps % checkpoint_interval == 0:
+            self.save_checkpoint()
+
     def log(self, name, value):
         self._writer.add_scalar(name, value, global_step=self._steps)
 
     def save_checkpoint(self, path=None):
         if path is None:
-            path = "checkpoints/{}-{}.ckpt".format(self._name, self._steps)
+            path = "{}/{}-{}.ckpt".format(self._checkpoint_dir,
+                                          self._name, self._steps)
 
         state = {
             'state_dict': self._model.state_dict(),
@@ -54,13 +62,14 @@ class TrainingBuddy:
     def load_checkpoint(self, path=None):
         if path is None:
             path_choices = glob.glob(
-                "checkpoints/{}-*.ckpt".format(self._name))
+                "{}/{}-*.ckpt".format(self._checkpoint_dir, self._name))
             if len(path_choices) == 0:
                 print("No checkpoint found")
                 return
             steps = []
             for choice in path_choices:
-                prefix_len = len("checkpoints/{}-".format(self._name))
+                prefix_len = len(
+                    "{}/{}-".format(self._checkpoint_dir, self._name))
                 suffix_len = len(".ckpt")
                 string_steps = choice[prefix_len:-suffix_len]
                 steps.append(int(string_steps))
@@ -79,42 +88,6 @@ class TrainingBuddy:
         self._steps = state['steps']
 
         print("Loaded checkpoint from path:", path)
-
-
-class DictIndexWrapper:
-    def __init__(self, data):
-        assert type(data) == dict
-
-        # Every value in the dict should have the same length
-        self._length = None
-        for value in data.values():
-            length = len(value)
-            if self._length is None:
-                self._length = length
-            else:
-                assert length == self._length
-
-        self._data = data
-
-    def __getitem__(self, key):
-        output = {}
-        for data_key, data_value in self._data.items():
-            output[data_key] = data_value[key]
-        return output
-
-    def __len__(self):
-        return self._length
-
-    def append(self, other):
-        for key, value in other.items():
-            if key in self._data.keys():
-                self._data[key].append(value)
-            else:
-                self._data[key] = [value]
-
-    def convert_to_numpy(self):
-        for key, value in self._data.items():
-            self._data[key] = np.asarray(value)
 
 
 def to_device(x, device, detach=True):
@@ -152,6 +125,7 @@ def to_torch(x, device='cpu'):
         # Convert lists of values
         output = []
         for value in x:
+            print(value)
             output.append(to_torch(value, device))
     else:
         assert False, "Invalid datatype {}!".format(type(x))
