@@ -16,7 +16,7 @@ class PandaBaselineModel(nn.Module):
 
         obs_pose_dim = 7
         obs_sensors_dim = 7
-        state_dim = 2
+        state_dim = 1
         control_dim = 20
 
         self.state_layers = nn.Sequential(
@@ -53,7 +53,7 @@ class PandaBaselineModel(nn.Module):
             nn.ReLU(inplace=True),
             resblocks.Linear(units),
             resblocks.Linear(units),
-            nn.Linear(units, 2),  # Directly output new state
+            nn.Linear(units, state_dim),  # Directly output new state
             # nn.LogSigmoid()
         )
 

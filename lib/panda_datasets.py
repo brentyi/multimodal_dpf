@@ -13,6 +13,7 @@ def load_trajectories(*paths, use_vision=True,
     trajectories = []
 
     for path in paths:
+        count = np.float('inf')
         if type(path) == tuple:
             path, count = path
             assert type(count) == int

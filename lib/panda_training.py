@@ -32,7 +32,7 @@ def train_dynamics(buddy, pf_model, dataloader, log_interval=10):
 
         if buddy._steps % log_interval == 0:
             with buddy.log_namespace("dynamics"):
-                buddy.log("Training loss", loss)
+                # buddy.log("Training loss", loss)
                 buddy.log("MSE position", mse_pos)
 
                 label_std = new_states.std(dim=0)
@@ -152,7 +152,7 @@ def train_e2e(buddy, pf_model, dataloader, log_interval=10, loss_type="gmm"):
 
 
 def rollout(pf_model, trajectories, start_time=0, max_timesteps=100000,
-            particle_count=100, noisy_dynamics=True, device='cpu'):
+            particle_count=100, noisy_dynamics=True):
     # To make things easier, we're going to cut all our trajectories to the
     # same length :)
     end_time = np.min([len(s) for s, _, _ in trajectories] +
@@ -164,6 +164,8 @@ def rollout(pf_model, trajectories, start_time=0, max_timesteps=100000,
     state_dim = len(actual_states[0][0])
     N = len(trajectories)
     M = particle_count
+
+    device = next(pf_model.parameters()).device
 
     particles = np.zeros((N, M, state_dim))
     for i in range(N):
