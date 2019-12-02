@@ -77,7 +77,7 @@ class TrainingBuddy:
 
     def save_checkpoint(self, path=None):
         if path is None:
-            path = "{}/{}-{}.ckpt".format(self._checkpoint_dir,
+            path = "{}/{}-{:016d}.ckpt".format(self._checkpoint_dir,
                                           self._name, self._steps)
 
         optimizer_states = {}
@@ -106,7 +106,6 @@ class TrainingBuddy:
                 suffix_len = len(".ckpt")
                 string_steps = choice[prefix_len:-suffix_len]
                 steps.append(int(string_steps))
-                assert str(steps[-1]) == string_steps
 
             path = path_choices[np.argmax(steps)]
             expected_steps = np.max(steps)

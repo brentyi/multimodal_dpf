@@ -24,7 +24,7 @@ def train(buddy, model, dataloader, log_interval=10):
         loss = torch.mean((new_states_pred - new_states) ** 2)
         losses.append(torch_utils.to_numpy(loss))
 
-        buddy.minimize(loss)
+        buddy.minimize(loss, checkpoint_interval=10000)
 
         if buddy._steps % log_interval == 0:
             with buddy.log_namespace("baseline_training"):
