@@ -6,7 +6,7 @@ from .utils import torch_utils
 from .utils import misc_utils
 
 
-def train(buddy, model, dataloader, log_interval=10):
+def train(buddy, model, dataloader, log_interval=10, state_noise_std=0.2):
     losses = []
 
     # Train for 1 epoch
@@ -15,7 +15,7 @@ def train(buddy, model, dataloader, log_interval=10):
         batch_gpu = torch_utils.to_device(batch, buddy._device)
         prev_states, observations, controls, new_states = batch_gpu
         prev_states += torch_utils.to_torch(np.random.normal(
-            0, 0.3, size=prev_states.shape), device=buddy._device)
+            0, state_noise_std, size=prev_states.shape), device=buddy._device)
 
         new_states_pred = model(prev_states, observations, controls)
 
