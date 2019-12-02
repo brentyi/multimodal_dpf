@@ -9,10 +9,10 @@ from . import dpf
 
 class PandaAltDynamicsModel(dpf.DynamicsModel):
 
-    def __init__(self, state_noise=(0.02), units=16):
+    def __init__(self, state_noise=(0.0, 0.002), units=16):
         super().__init__()
 
-        state_dim = 1
+        state_dim = 2
         control_dim = 20
 
         self.state_noise = state_noise
@@ -66,14 +66,14 @@ class PandaAltDynamicsModel(dpf.DynamicsModel):
         assert merged_features.shape == (N, M, self.units)
 
         # (N, M, units * 2) => (N, M, 1)
-        new_state = self.shared_layers(merged_features)
-        assert new_state.shape == (N, M, 1)
+        new_velocity = self.shared_layers(merged_features)
+        assert new_velocity.shape == (N, M, 1)
 
         # Compute new states
         # states_new = states_prev + state_update
-        states_new = states_prev + new_state
-        # states_new[:, :, 0] += states_prev[:, :, 1] / 20.
-        # states_new[:, :, 1:2] += new_state * 0.
+        states_new = states_prev.clone()
+        states_new[:, :, 0] += states_prev[:, :, 1] / 20.
+        states_new[:, :, 1:2] += new_velocity * 0.
         assert states_new.shape == (N, M, state_dim)
 
         # Add noise if desired
@@ -90,10 +90,10 @@ class PandaAltDynamicsModel(dpf.DynamicsModel):
 
 class PandaDynamicsModel(dpf.DynamicsModel):
 
-    def __init__(self, state_noise=(0.02), units=16):
+    def __init__(self, state_noise=(0.02, 0.002), units=16):
         super().__init__()
 
-        state_dim = 1
+        state_dim = 2
         control_dim = 20
 
         self.state_noise = state_noise
@@ -150,7 +150,8 @@ class PandaDynamicsModel(dpf.DynamicsModel):
         assert state_update.shape == (N, M, state_dim)
 
         # Compute new states
-        states_new = states_prev + state_update
+        # states_new = states_prev + state_update
+        states_new = state_update
         assert states_new.shape == (N, M, state_dim)
 
         # Add noise if desired
@@ -172,7 +173,7 @@ class PandaMeasurementModel(dpf.MeasurementModel):
 
         obs_pose_dim = 7
         obs_sensors_dim = 7
-        state_dim = 1
+        state_dim = 2
 
         self.observation_image_layers = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=3, kernel_size=3, padding=1),
@@ -222,8 +223,8 @@ class PandaMeasurementModel(dpf.MeasurementModel):
         observation_features = torch.cat((
             self.observation_image_layers(
                 observations['image'][:, np.newaxis, :, :]),
-            self.observation_pose_layers(observations['gripper_pose']) * 0.,
-            self.observation_sensors_layers(observations['gripper_sensors']) * 0.,
+            self.observation_pose_layers(observations['gripper_pose']),
+            self.observation_sensors_layers(observations['gripper_sensors']),
         ), dim=1)
 
         # (N, obs_dim) => (N, M, obs_dim)

@@ -67,7 +67,7 @@ class PandaSimpleDataset(torch.utils.data.Dataset):
 
 
 class PandaParticleFilterDataset(dpf.ParticleFilterDataset):
-    default_particle_variances = [0.1]
+    default_particle_variances = [0.1, 0.01]
     default_subsequence_length = 20
     default_particle_count = 100
 

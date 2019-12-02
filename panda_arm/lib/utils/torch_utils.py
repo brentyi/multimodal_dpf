@@ -9,6 +9,7 @@ import torch.utils.tensorboard
 
 from . import misc_utils
 
+
 class TrainingBuddy:
     def __init__(self, name, model, optimizer_names=["primary"], load_checkpoint=True,
                  log_dir="logs", checkpoint_dir="checkpoints"):
@@ -29,6 +30,7 @@ class TrainingBuddy:
             log_dir + "/" + name)
         self._checkpoint_dir = checkpoint_dir
         self._steps = 0
+        self._log_namespace = None
 
         # Create optimizers -- we might want to use a different one for each
         # loss function
@@ -55,7 +57,22 @@ class TrainingBuddy:
         if self._steps % checkpoint_interval == 0:
             self.save_checkpoint()
 
+    def log_namespace(self, namespace):
+        # TODO: support nesting?
+        class _Namespace:
+            def __enter__(unused_self):
+                self._log_namespace = namespace
+                return unused_self
+
+            def __exit__(*unused):
+                self._log_namespace = None
+                return
+
+        return _Namespace()
+
     def log(self, name, value):
+        if self._log_namespace is not None:
+            name = "{}/{}".format(self._log_namespace, name)
         self._writer.add_scalar(name, value, global_step=self._steps)
 
     def save_checkpoint(self, path=None):
