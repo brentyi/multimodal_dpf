@@ -49,7 +49,7 @@ def load_trajectories(*paths, use_vision=True,
                 ), axis=1)
                 if not use_proprioception:
                     observations['gripper_pose'][:] = 0
-                    observations['gripper_velocity'][:] = 0
+                    # observations['gripper_velocity'][:] = 0
                     observations['gripper_sensors'][:] = 0
 
                 observations['image'] = np.zeros_like(trajectory['image'])
