@@ -8,6 +8,8 @@ from .utils import misc_utils
 
 
 def train_dynamics(buddy, pf_model, dataloader, log_interval=10):
+    losses = []
+
     # Train dynamics only for 1 epoch
     # Train for 1 epoch
     for batch_idx, batch in enumerate(dataloader):
@@ -24,6 +26,7 @@ def train_dynamics(buddy, pf_model, dataloader, log_interval=10):
 
         mse_pos = torch.mean((new_states_pred - new_states) ** 2, axis=0)
         loss = mse_pos
+        losses.append(torch_utils.to_numpy(loss))
 
         buddy.minimize(loss, optimizer_name="dynamics")
 
@@ -45,9 +48,12 @@ def train_dynamics(buddy, pf_model, dataloader, log_interval=10):
                 buddy.log("Predicted pos mean", pred_mean[0])
 
             print(".", end="")
+    print("Epoch loss:", np.mean(losses))
 
 
 def train_measurement(buddy, pf_model, dataloader, log_interval=10):
+    losses = []
+
     # Train measurement model only for 1 epoch
     for batch_idx, batch in enumerate(dataloader):
         # Transfer to GPU and pull out batch data
@@ -61,6 +67,7 @@ def train_measurement(buddy, pf_model, dataloader, log_interval=10):
         pred_likelihoods = pred_likelihoods.squeeze(dim=1)
 
         loss = torch.mean((pred_likelihoods - log_likelihoods) ** 2)
+        losses.append(torch_utils.to_numpy(loss))
 
         buddy.minimize(loss, optimizer_name="measurement")
 
@@ -75,9 +82,12 @@ def train_measurement(buddy, pf_model, dataloader, log_interval=10):
                 buddy.log("Label likelihoods std", log_likelihoods.std())
 
             print(".", end="")
+    print("Epoch loss:", np.mean(losses))
 
 
-def train_e2e(buddy, pf_model, dataloader, log_interval=10):
+def train_e2e(buddy, pf_model, dataloader, log_interval=10, loss_type="gmm"):
+    losses = []
+
     # Train for 1 epoch
     for batch_idx, batch in enumerate(dataloader):
         # Transfer to GPU and pull out batch data
@@ -106,16 +116,25 @@ def train_e2e(buddy, pf_model, dataloader, log_interval=10):
                 resample=False,
                 noisy_dynamics=True
             )
-            loss = dpf.gmm_loss(
-                particles_states=new_particles,
-                log_weights=new_log_weights,
-                true_states=batch_states[:, t, :],
-                gmm_variances=np.array([0.1])
-            )
+
+            if loss_type == "gmm":
+                loss = dpf.gmm_loss(
+                    particles_states=new_particles,
+                    log_weights=new_log_weights,
+                    true_states=batch_states[:, t, :],
+                    gmm_variances=np.array([0.1])
+                )
+            elif loss_type == "mse":
+                loss = torch.mean((state_estimates - batch_states[:, t, :]) ** 2)
+            else:
+                assert False, "Invalid loss"
+
+            losses.append(torch_utils.to_numpy(loss))
+
             # assert state_estimates.shape == batch_states[:, t, :].shape
-            # loss = torch.mean((state_estimates - batch_states[:, t, :]) ** 2)
 
             buddy.minimize(loss, optimizer_name="e2e")
+
             # Disable backprop through time
             particles = new_particles.detach()
             log_weights = new_log_weights.detach()
@@ -125,14 +144,15 @@ def train_e2e(buddy, pf_model, dataloader, log_interval=10):
                     buddy.log("Training loss", loss)
                     buddy.log("Log weights mean", log_weights.mean())
                     buddy.log("Log weights std", log_weights.std())
-                    buddy.log("Particle states mean", particles_states.mean())
-                    buddy.log("particle states std", particle_states.std())
+                    buddy.log("Particle states mean", particles.mean())
+                    buddy.log("particle states std", particles.std())
 
             print(".", end="")
+    print("Epoch loss:", np.mean(losses))
 
 
 def rollout(pf_model, trajectories, start_time=0, max_timesteps=100000,
-         particle_count=100, noisy_dynamics=True, device='cpu'):
+            particle_count=100, noisy_dynamics=True, device='cpu'):
     # To make things easier, we're going to cut all our trajectories to the
     # same length :)
     end_time = np.min([len(s) for s, _, _ in trajectories] +
