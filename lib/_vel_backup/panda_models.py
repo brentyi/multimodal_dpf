@@ -7,9 +7,41 @@ from . import resblocks
 from . import dpf
 
 
+class PandaSimpleDynamicsModel(dpf.DynamicsModel):
+
+    def __init__(self, state_noise=(0.02)):
+        super().__init__()
+
+        self.state_noise = state_noise
+
+    def forward(self, states_prev, controls, noisy=False):
+        # states_prev:  (N, M, state_dim)
+        # controls: (N, control_dim)
+
+        assert len(states_prev.shape) == 3  # (N, M, state_dim)
+
+        # N := distinct trajectory count
+        # M := particle count
+        N, M, state_dim = states_prev.shape
+
+        states_new = states_prev.clone()
+        states_new[:, :, 0] += states_prev[:, :, 1] / 20.
+
+        # Add noise if desired
+        if noisy:
+            dist = torch.distributions.Normal(
+                torch.tensor([0.]), torch.tensor(self.state_noise))
+            noise = dist.sample((N, M)).to(states_new.device)
+            assert noise.shape == (N, M, state_dim)
+            states_new = states_new + noise
+
+        # Return (N, M, state_dim)
+        return states_new
+
+
 class PandaAltDynamicsModel(dpf.DynamicsModel):
 
-    def __init__(self, state_noise=(0.0, 0.002), units=16):
+    def __init__(self, state_noise=(0.02), units=16):
         super().__init__()
 
         state_dim = 2
@@ -66,14 +98,14 @@ class PandaAltDynamicsModel(dpf.DynamicsModel):
         assert merged_features.shape == (N, M, self.units)
 
         # (N, M, units * 2) => (N, M, 1)
-        new_velocity = self.shared_layers(merged_features)
-        assert new_velocity.shape == (N, M, 1)
+        new_state = self.shared_layers(merged_features)
+        assert new_state.shape == (N, M, 1)
 
         # Compute new states
         # states_new = states_prev + state_update
-        states_new = states_prev.clone()
-        states_new[:, :, 0] += states_prev[:, :, 1] / 20.
-        states_new[:, :, 1:2] += new_velocity * 0.
+        states_new = states_prev + new_state
+        # states_new[:, :, 0] += states_prev[:, :, 1] / 20.
+        # states_new[:, :, 1:2] += new_state * 0.
         assert states_new.shape == (N, M, state_dim)
 
         # Add noise if desired
@@ -90,7 +122,7 @@ class PandaAltDynamicsModel(dpf.DynamicsModel):
 
 class PandaDynamicsModel(dpf.DynamicsModel):
 
-    def __init__(self, state_noise=(0.02, 0.002), units=16):
+    def __init__(self, state_noise=(0.02), units=16):
         super().__init__()
 
         state_dim = 2
@@ -150,8 +182,7 @@ class PandaDynamicsModel(dpf.DynamicsModel):
         assert state_update.shape == (N, M, state_dim)
 
         # Compute new states
-        # states_new = states_prev + state_update
-        states_new = state_update
+        states_new = states_prev + state_update
         assert states_new.shape == (N, M, state_dim)
 
         # Add noise if desired
@@ -224,7 +255,8 @@ class PandaMeasurementModel(dpf.MeasurementModel):
             self.observation_image_layers(
                 observations['image'][:, np.newaxis, :, :]),
             self.observation_pose_layers(observations['gripper_pose']),
-            self.observation_sensors_layers(observations['gripper_sensors']),
+            self.observation_sensors_layers(
+                observations['gripper_sensors']),
         ), dim=1)
 
         # (N, obs_dim) => (N, M, obs_dim)
@@ -233,7 +265,7 @@ class PandaMeasurementModel(dpf.MeasurementModel):
         assert observation_features.shape == (N, M, self.units * 3)
 
         # (N, M, state_dim) => (N, M, units)
-        state_features = self.state_layers(states)
+        state_features = self.state_layers(states * torch.tensor([[[1., 0.]]], device=states.device))
         assert state_features.shape == (N, M, self.units)
 
         # (N, M, units)

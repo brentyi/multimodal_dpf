@@ -7,6 +7,37 @@ from . import resblocks
 from . import dpf
 
 
+class PandaSimpleDynamicsModel(dpf.DynamicsModel):
+
+    def __init__(self, state_noise=(0.02)):
+        super().__init__()
+
+        self.state_noise = state_noise
+
+    def forward(self, states_prev, controls, noisy=False):
+        # states_prev:  (N, M, state_dim)
+        # controls: (N, control_dim)
+
+        assert len(states_prev.shape) == 3  # (N, M, state_dim)
+
+        # N := distinct trajectory count
+        # M := particle count
+        N, M, state_dim = states_prev.shape
+
+        states_new = states_prev
+
+        # Add noise if desired
+        if noisy:
+            dist = torch.distributions.Normal(
+                torch.tensor([0.]), torch.tensor(self.state_noise))
+            noise = dist.sample((N, M)).to(states_new.device)
+            assert noise.shape == (N, M, state_dim)
+            states_new = states_new + noise
+
+        # Return (N, M, state_dim)
+        return states_new
+
+
 class PandaAltDynamicsModel(dpf.DynamicsModel):
 
     def __init__(self, state_noise=(0.02), units=16):
@@ -222,8 +253,9 @@ class PandaMeasurementModel(dpf.MeasurementModel):
         observation_features = torch.cat((
             self.observation_image_layers(
                 observations['image'][:, np.newaxis, :, :]),
-            self.observation_pose_layers(observations['gripper_pose']) * 0.,
-            self.observation_sensors_layers(observations['gripper_sensors']) * 0.,
+            self.observation_pose_layers(observations['gripper_pose']),
+            self.observation_sensors_layers(
+                observations['gripper_sensors']),
         ), dim=1)
 
         # (N, obs_dim) => (N, M, obs_dim)
@@ -233,6 +265,7 @@ class PandaMeasurementModel(dpf.MeasurementModel):
 
         # (N, M, state_dim) => (N, M, units)
         state_features = self.state_layers(states)
+        # state_features = self.state_layers(states * torch.tensor([[[1., 0.]]], device=states.device))
         assert state_features.shape == (N, M, self.units)
 
         # (N, M, units)

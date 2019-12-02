@@ -176,12 +176,12 @@ def to_numpy(x):
         # Convert dictionaries of values
         output = {}
         for key, value in x.items():
-            output[key] = from_torch(value)
+            output[key] = to_numpy(value)
     elif type(x) in (list, tuple):
         # Convert lists of values
         output = []
         for value in x:
-            output.append(from_torch(value))
+            output.append(to_numpy(value))
     else:
         assert False, "Invalid datatype {}!".format(type(x))
 
