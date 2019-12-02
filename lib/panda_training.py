@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 
 from . import dpf
 from .utils import torch_utils
@@ -119,9 +120,19 @@ def train_e2e(buddy, pf_model, dataloader, log_interval=10):
             particles = new_particles.detach()
             log_weights = new_log_weights.detach()
 
+            if buddy._steps % log_interval == 0:
+                with buddy.log_namespace("e2e"):
+                    buddy.log("Training loss", loss)
+                    buddy.log("Log weights mean", log_weights.mean())
+                    buddy.log("Log weights std", log_weights.std())
+                    buddy.log("Particle states mean", particles_states.mean())
+                    buddy.log("particle states std", particle_states.std())
+
+            print(".", end="")
+
 
 def rollout(pf_model, trajectories, start_time=0, max_timesteps=100000,
-         particle_count=100, noisy_dynamics=True):
+         particle_count=100, noisy_dynamics=True, device='cpu'):
     # To make things easier, we're going to cut all our trajectories to the
     # same length :)
     end_time = np.min([len(s) for s, _, _ in trajectories] +
@@ -137,8 +148,8 @@ def rollout(pf_model, trajectories, start_time=0, max_timesteps=100000,
     particles = np.zeros((N, M, state_dim))
     for i in range(N):
         particles[i, :] = predicted_states[i][0]
-    particles = torch_utils.to_torch(particles, device=buddy._device)
-    log_weights = torch.ones((N, M), device=buddy._device) * (-np.log(M))
+    particles = torch_utils.to_torch(particles, device=device)
+    log_weights = torch.ones((N, M), device=device) * (-np.log(M))
 
     for t in range(start_time + 1, end_time):
         s = []
@@ -155,7 +166,7 @@ def rollout(pf_model, trajectories, start_time=0, max_timesteps=100000,
         s = np.array(s)
         misc_utils.DictIterator(o).convert_to_numpy()
         c = np.array(c)
-        (s, o, c) = torch_utils.to_torch((s, o, c), device=buddy._device)
+        (s, o, c) = torch_utils.to_torch((s, o, c), device=device)
 
         state_estimates, new_particles, new_log_weights = pf_model.forward(
             particles,
