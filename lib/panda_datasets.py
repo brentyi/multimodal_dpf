@@ -53,10 +53,11 @@ def load_trajectories(*paths, use_vision=True,
                     observations['gripper_sensors'][:] = 0
 
                 observations['image'] = np.zeros_like(trajectory['image'])
-                for i in range(len(observations['image'])):
-                    index = (i // vision_interval) * vision_interval
-                    index = min(index, len(observations['image']))
-                    observations['image'][i] = trajectory['image'][index]
+                if use_vision:
+                    for i in range(len(observations['image'])):
+                        index = (i // vision_interval) * vision_interval
+                        index = min(index, len(observations['image']))
+                        observations['image'][i] = trajectory['image'][index]
 
                 # Pull out control states
                 control_keys = [
