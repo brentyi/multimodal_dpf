@@ -116,15 +116,15 @@ class TrainingBuddy:
             path = path_choices[np.argmax(steps)]
             expected_steps = np.max(steps)
 
-            state = torch.load(path)
+            state = torch.load(path, map_location=self._device)
             assert state['steps'] == np.max(steps)
         elif path is None and label is not None:
             path = "{}/{}-{}.ckpt".format(self._checkpoint_dir,
                                           self._name, label)
             print(path)
-            state = torch.load(path)
+            state = torch.load(path, map_location=self._device)
         elif path is not None:
-            state = torch.load(path)
+            state = torch.load(path, map_location=self._device)
         else:
             assert False, "invalid arguments!"
 
