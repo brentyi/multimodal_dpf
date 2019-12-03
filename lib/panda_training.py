@@ -115,7 +115,7 @@ def train_e2e(buddy, pf_model, dataloader, log_interval=10, loss_type="gmm"):
                 prev_log_weights,
                 misc_utils.DictIterator(batch_obs)[:, t - 1, :],
                 batch_controls[:, t, :],
-                resample=False,
+                resample=True,
                 noisy_dynamics=True
             )
 

@@ -153,7 +153,7 @@ class PandaMeasurementDataset(torch.utils.data.Dataset):
     A customized data preprocessor for trajectories
     """
 
-    def __init__(self, *paths, std_dev=0.1, samples_per_pair=100, **kwargs):
+    def __init__(self, *paths, std_dev=0.1, samples_per_pair=20, **kwargs):
         """
         Input:
           *paths: paths to dataset hdf5 files
