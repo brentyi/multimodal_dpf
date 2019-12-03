@@ -248,6 +248,10 @@ class PandaMeasurementModel(dpf.MeasurementModel):
 
         N, M, _ = states.shape
 
+        # Zero some stuff we don't need out (experimental)
+        observations['gripper_pose'][:, 3:7] = 0.
+        observations['gripper_sensors'][:, 1:7] = 0.
+
         # Construct observations feature vector
         # (N, obs_dim)
         observation_features = torch.cat((
