@@ -103,7 +103,7 @@ def vis_rollout(predicted_states, actual_states):
         actual_label_arg = {}
         if i == 0:
             predicted_label_arg['label'] = "Predicted"
-            actual_label_arg['label'] "Ground Truth"
+            actual_label_arg['label'] = "Ground Truth"
 
         plt.plot(range(timesteps),
                  pred[:, 0],
