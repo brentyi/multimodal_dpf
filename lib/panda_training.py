@@ -28,7 +28,7 @@ def train_dynamics(buddy, pf_model, dataloader, log_interval=10):
         loss = mse_pos
         losses.append(torch_utils.to_numpy(loss))
 
-        buddy.minimize(loss, optimizer_name="dynamics")
+        buddy.minimize(loss, optimizer_name="dynamics", checkpoint_interval=10000)
 
         if buddy._steps % log_interval == 0:
             with buddy.log_namespace("dynamics"):
@@ -69,7 +69,7 @@ def train_measurement(buddy, pf_model, dataloader, log_interval=10):
         loss = torch.mean((pred_likelihoods - log_likelihoods) ** 2)
         losses.append(torch_utils.to_numpy(loss))
 
-        buddy.minimize(loss, optimizer_name="measurement")
+        buddy.minimize(loss, optimizer_name="measurement", checkpoint_interval=10000)
 
         if buddy._steps % log_interval == 0:
             with buddy.log_namespace("measurement"):
@@ -82,6 +82,8 @@ def train_measurement(buddy, pf_model, dataloader, log_interval=10):
                 buddy.log("Label likelihoods std", log_likelihoods.std())
 
             print(".", end="")
+            if buddy._steps % (log_interval * 10) == 0:
+                print("[{:.2f}%]".format(batch_idx / len(dataloader) * 100.), end="")
     print("Epoch loss:", np.mean(losses))
 
 
@@ -133,7 +135,7 @@ def train_e2e(buddy, pf_model, dataloader, log_interval=10, loss_type="gmm"):
 
             # assert state_estimates.shape == batch_states[:, t, :].shape
 
-            buddy.minimize(loss, optimizer_name="e2e")
+            buddy.minimize(loss, optimizer_name="e2e", checkpoint_interval=10000)
 
             # Disable backprop through time
             particles = new_particles.detach()
@@ -208,8 +210,11 @@ def rollout(pf_model, trajectories, start_time=0, max_timesteps=100000,
                 torch_utils.to_numpy(
                     state_estimates[i]))
 
-        misc_utils.progress_bar(t / (end_time - start_time))
-    misc_utils.progress_bar(1.)
+        if t % 10 == 0:
+            print(".", end="")
+    print()
+    #     misc_utils.progress_bar(t / (end_time - start_time))
+    # misc_utils.progress_bar(1.)
 
     predicted_states = np.array(predicted_states)
     actual_states = np.array(actual_states)

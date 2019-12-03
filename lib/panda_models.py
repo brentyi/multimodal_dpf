@@ -9,7 +9,7 @@ from . import dpf
 
 class PandaSimpleDynamicsModel(dpf.DynamicsModel):
 
-    def __init__(self, state_noise=(0.02)):
+    def __init__(self, state_noise=(0.05)):
         super().__init__()
 
         self.state_noise = state_noise

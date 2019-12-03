@@ -75,10 +75,13 @@ class TrainingBuddy:
             name = "{}/{}".format(self._log_namespace, name)
         self._writer.add_scalar(name, value, global_step=self._steps)
 
-    def save_checkpoint(self, path=None):
-        if path is None:
+    def save_checkpoint(self, label=None, path=None):
+        if path is None and label is None:
             path = "{}/{}-{:016d}.ckpt".format(self._checkpoint_dir,
-                                          self._name, self._steps)
+                                               self._name, self._steps)
+        else:
+            path = "{}/{}-{}.ckpt".format(self._checkpoint_dir,
+                                          self._name, label)
 
         optimizer_states = {}
         for name, optimizer in self._optimizers.items():
@@ -92,8 +95,8 @@ class TrainingBuddy:
         torch.save(state, path)
         print("Saved checkpoint to path:", path)
 
-    def load_checkpoint(self, path=None):
-        if path is None:
+    def load_checkpoint(self, label=None, path=None):
+        if path is None and label is None:
             path_choices = glob.glob(
                 "{}/{}-*.ckpt".format(self._checkpoint_dir, self._name))
             if len(path_choices) == 0:
@@ -105,15 +108,25 @@ class TrainingBuddy:
                     "{}/{}-".format(self._checkpoint_dir, self._name))
                 suffix_len = len(".ckpt")
                 string_steps = choice[prefix_len:-suffix_len]
-                steps.append(int(string_steps))
+                try:
+                    steps.append(int(string_steps))
+                except ValueError:
+                    steps.append(-1)
 
             path = path_choices[np.argmax(steps)]
             expected_steps = np.max(steps)
 
             state = torch.load(path)
             assert state['steps'] == np.max(steps)
-        else:
+        elif path is None and label is not None:
+            path = "{}/{}-{}.ckpt".format(self._checkpoint_dir,
+                                          self._name, label)
+            print(path)
             state = torch.load(path)
+        elif path is not None:
+            state = torch.load(path)
+        else:
+            assert False, "invalid arguments!"
 
         self._model.load_state_dict(state['state_dict'])
 
