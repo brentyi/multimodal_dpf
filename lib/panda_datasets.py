@@ -53,8 +53,10 @@ def load_trajectories(*paths, use_vision=True,
                     observations['gripper_sensors'][:] = 0
 
                 observations['image'] = np.zeros_like(trajectory['image'])
-                if use_vision:
-                    observations['image'][::vision_interval] = trajectory['image'][::vision_interval]
+                for i in range(len(observations['image'])):
+                    index = (i // vision_interval) * vision_interval
+                    index = min(index, len(observations['image']))
+                    observations['image'][i] = trajectory['image'][index]
 
                 # Pull out control states
                 control_keys = [
@@ -151,7 +153,7 @@ class PandaMeasurementDataset(torch.utils.data.Dataset):
     A customized data preprocessor for trajectories
     """
 
-    def __init__(self, *paths, std_dev=0.1, samples_per_pair=20, **kwargs):
+    def __init__(self, *paths, std_dev=0.1, samples_per_pair=100, **kwargs):
         """
         Input:
           *paths: paths to dataset hdf5 files
@@ -191,7 +193,7 @@ class PandaMeasurementDataset(torch.utils.data.Dataset):
 
         state, observation = self.dataset[index // self.samples_per_pair]
 
-        if index % self.samples_per_pair < self.samples_per_pair * 0.7:
+        if index % self.samples_per_pair < self.samples_per_pair * 0.5:
             noisy_state = state + \
                 np.random.normal(
                     loc=0., scale=self.std_dev, size=state.shape)

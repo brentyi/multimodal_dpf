@@ -144,8 +144,14 @@ class ParticleFilterDataset(torch.utils.data.Dataset):
         # Generate noisy states as initial particles
         n = torch.distributions.Normal(
             torch.tensor(
-                [0.]), torch.tensor(
-                self.particle_variances))
+                np.random.normal(
+                    loc=0.,
+                    scale=np.sqrt(np.asarray(self.particle_variances) / 2)
+                ).astype(np.float32)
+            ),
+            torch.tensor(self.particle_variances)
+        )
+
         initial_particles = n.sample((self.particle_count, ))
         assert initial_particles.shape == (self.particle_count, state_dim)
         initial_particles = initial_particles + initial_state
