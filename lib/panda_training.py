@@ -230,14 +230,24 @@ def vis_rollout(predicted_states, actual_states):
 
     plt.figure(figsize=(15, 10))
     for i, (pred, actual) in enumerate(zip(predicted_states, actual_states)):
+        predicted_label_arg = {}
+        actual_label_arg = {}
+        if i == 0:
+            predicted_label_arg['label'] = "Predicted"
+            actual_label_arg['label'] = "Ground Truth"
+
         plt.plot(range(timesteps),
-                 pred[:,
-                      0],
-                 label="Predicted Position " + str(i),
+                 pred[:, 0],
                  c=color(i),
-                 alpha=0.3)
+                 alpha=0.3,
+                 **predicted_label_arg)
         plt.plot(range(timesteps),
-                 actual[:, 0], label="Actual Position " + str(i), c=color(i))
+                 actual[:, 0],
+                 c=color(i),
+                 **actual_label_arg)
+
+    plt.xlabel("Timesteps")
+    plt.ylabel("Position")
     plt.legend()
     plt.show()
     print(predicted_states.shape)
