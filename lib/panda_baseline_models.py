@@ -8,7 +8,7 @@ from . import resblocks
 
 class PandaBaselineModel(nn.Module):
 
-    def __init__(self, use_prev_state=True, units=16):
+    def __init__(self, use_prev_state=True, units=32):
         super().__init__()
 
         self.use_prev_state = use_prev_state
