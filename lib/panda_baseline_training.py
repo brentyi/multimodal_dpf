@@ -82,9 +82,6 @@ def rollout(model, trajectories):
         for i in range(len(trajectories)):
             predicted_states[i].append(pred[i])
 
-        misc_utils.progress_bar(t / timesteps)
-    misc_utils.progress_bar(1.)
-
     predicted_states = np.array(predicted_states)
     actual_states = np.array(actual_states)
     return predicted_states, actual_states
