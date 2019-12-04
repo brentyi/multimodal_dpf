@@ -94,7 +94,7 @@ def vis_rollout(predicted_states, actual_states):
         colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
         return colors[i % len(colors)]
 
-    plt.figure(figsize=(15, 10))
+    plt.figure(figsize=(8, 6))
     for i, (pred, actual) in enumerate(zip(predicted_states, actual_states)):
         predicted_label_arg = {}
         actual_label_arg = {}
