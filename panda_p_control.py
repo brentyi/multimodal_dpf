@@ -54,9 +54,9 @@ if __name__ == "__main__":
         policy = panda_waypoint_policies.PullWaypointPolicy()
 
         # Initialize state estimator
-        estimator = panda_state_estimators.GroundTruthStateEstimator()
-        # estimator = panda_state_estimators.BaselineStateEstimator("baseline_all_sensors", obs)
-        # estimator = panda_state_estimators.DPFStateEstimator("dpf_all_sensors", obs)
+        # estimator = panda_state_estimators.GroundTruthStateEstimator()
+        # estimator = panda_state_estimators.BaselineStateEstimator("baseline_all_sensors2", obs)
+        estimator = panda_state_estimators.DPFStateEstimator("dpf_all_sensors", obs, e2e=True)
 
         # Set initial joint and door position
         initial_joints, initial_door = policy.get_initial_state()
@@ -104,4 +104,4 @@ if __name__ == "__main__":
     print()
     print()
     print("MSE ERROR")
-    print(np.mean(errors))
+    print(np.mean(np.array(errors) ** 2))

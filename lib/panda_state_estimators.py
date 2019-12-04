@@ -10,9 +10,9 @@ from .utils import misc_utils
 
 
 class StateEstimator(abc.ABC):
-    @abc.abstractmethod
-    def __init__(self, *args):
-        pass
+    def __init__(self):
+        self.counter = 0
+        self.prev_image = None
 
     def update(self, obs):
         # Pre-process observations
@@ -27,6 +27,11 @@ class StateEstimator(abc.ABC):
             obs['ee-torque-obs'],
         ), axis=0)[np.newaxis, :]
         observations['image'] = obs['image'][np.newaxis,:,:]
+
+        if self.counter % 10 != 0:
+            observations['image'] = self.prev_image
+        self.prev_image = observations['image']
+        self.counter += 1
 
         control_keys = [
             'eef_pos',
@@ -54,6 +59,7 @@ class StateEstimator(abc.ABC):
 
 class GroundTruthStateEstimator(StateEstimator):
     def __init__(self):
+        super().__init__()
         pass
 
     def update(self, obs):
@@ -63,6 +69,7 @@ class GroundTruthStateEstimator(StateEstimator):
 
 class BaselineStateEstimator(StateEstimator):
     def __init__(self, experiment_name, initial_obs):
+        super().__init__()
 
         # Create model
         self.model = panda_baseline_models.PandaBaselineModel(
@@ -94,7 +101,9 @@ class BaselineStateEstimator(StateEstimator):
         return torch_utils.to_numpy(estimate)
 
 class DPFStateEstimator(StateEstimator):
-    def __init__(self, experiment_name, initial_obs):
+    def __init__(self, experiment_name, initial_obs, e2e=True):
+        super().__init__()
+
         door_pos = initial_obs['object-state'][1]
 
         # Initialize models
@@ -108,8 +117,11 @@ class DPFStateEstimator(StateEstimator):
             self.pf_model,
             optimizer_names=["e2e", "dynamics", "measurement"],
             log_dir="logs/pf",
-            checkpoint_dir="checkpoints/pf"
+            checkpoint_dir="checkpoints/pf",
+            load_checkpoint=e2e
         )
+        if not e2e:
+            self.buddy.load_checkpoint(label="before_e2e_training")
 
         # Initialize particles
         M = 200
