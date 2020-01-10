@@ -9,7 +9,7 @@ from .utils import file_utils
 
 
 def load_trajectories(*paths, use_vision=True,
-                      vision_interval=10, use_proprioception=True, **unused):
+                      vision_interval=10, use_proprioception=True, use_haptics=True, **unused):
     trajectories = []
 
     for path in paths:
@@ -49,7 +49,7 @@ def load_trajectories(*paths, use_vision=True,
                 ), axis=1)
                 if not use_proprioception:
                     observations['gripper_pose'][:] = 0
-                    # observations['gripper_velocity'][:] = 0
+                if not use_haptics:
                     observations['gripper_sensors'][:] = 0
 
                 observations['image'] = np.zeros_like(trajectory['image'])
