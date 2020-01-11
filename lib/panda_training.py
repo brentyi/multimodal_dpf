@@ -251,8 +251,8 @@ def vis_rollout(predicted_states, actual_states):
     plt.legend()
     plt.show()
     print(predicted_states.shape)
-    print("Position MSE: ", np.mean(
-        (predicted_states[:, :, 0] - actual_states[:, :, 0])**2))
+    print("Position RMSE, degrees: ", np.sqrt(np.mean(
+        (predicted_states[:, :, 0] - actual_states[:, :, 0])**2)) * 180. / np.pi)
 
 #     plt.figure(figsize=(15,10))
 #     for i, (pred, actual) in enumerate(zip(predicted_states, actual_states)):

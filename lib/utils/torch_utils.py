@@ -26,11 +26,15 @@ class TrainingBuddy:
         assert isinstance(model, nn.Module)
         self._name = name
         self._model = model
-        self._writer = torch.utils.tensorboard.SummaryWriter(
+
+        # Writer for tensorboard, which will be lazily instantiated
+        self._writer = None
+        self._make_writer = lambda: torch.utils.tensorboard.SummaryWriter(
             log_dir + "/" + name)
+
         self._checkpoint_dir = checkpoint_dir
         self._steps = 0
-        self._log_namespace = None
+        self._log_namespaces = []
 
         # Create optimizers -- we might want to use a different one for each
         # loss function
@@ -61,18 +65,21 @@ class TrainingBuddy:
         # TODO: support nesting?
         class _Namespace:
             def __enter__(unused_self):
-                self._log_namespace = namespace
+                self._log_namespaces.append(namespace)
                 return unused_self
 
             def __exit__(*unused):
-                self._log_namespace = None
+                self._log_namespaces.pop()
                 return
 
         return _Namespace()
 
     def log(self, name, value):
-        if self._log_namespace is not None:
-            name = "{}/{}".format(self._log_namespace, name)
+        if len(self._log_namespaces) > 0:
+            name = "{}/{}".format("/".join(self._log_namespaces), name)
+        if self._writer is None:
+            self._writer = self._make_writer()
+
         self._writer.add_scalar(name, value, global_step=self._steps)
 
     def save_checkpoint(self, label=None, path=None):
