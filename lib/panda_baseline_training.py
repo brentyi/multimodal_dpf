@@ -53,10 +53,11 @@ def train(buddy, model, dataloader, log_interval=10, state_noise_std=0.2):
     print("Epoch loss:", np.mean(losses))
 
 
-def rollout(model, trajectories):
+def rollout(model, trajectories, max_timesteps=300):
     # To make things easier, we're going to cut all our trajectories to the
     # same length :)
-    timesteps = np.min([len(s) for s, _, _ in trajectories])
+    timesteps = np.min([len(s) for s, _, _ in trajectories] + [max_timesteps])
+
     predicted_states = [[states[0]] for states, _, _ in trajectories]
     actual_states = [states[:timesteps] for states, _, _ in trajectories]
     for t in range(1, timesteps):
@@ -87,38 +88,39 @@ def rollout(model, trajectories):
     return predicted_states, actual_states
 
 
-def vis_rollout(predicted_states, actual_states):
-    timesteps = len(actual_states[0])
+def eval_rollout(predicted_states, actual_states, plot=False):
+    if plot:
+        timesteps = len(actual_states[0])
 
-    def color(i):
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
-        return colors[i % len(colors)]
+        def color(i):
+            colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+            return colors[i % len(colors)]
 
-    plt.figure(figsize=(8, 6))
-    for i, (pred, actual) in enumerate(zip(predicted_states, actual_states)):
-        predicted_label_arg = {}
-        actual_label_arg = {}
-        if i == 0:
-            predicted_label_arg['label'] = "Predicted"
-            actual_label_arg['label'] = "Ground Truth"
+        plt.figure(figsize=(8, 6))
+        for i, (pred, actual) in enumerate(zip(predicted_states, actual_states)):
+            predicted_label_arg = {}
+            actual_label_arg = {}
+            if i == 0:
+                predicted_label_arg['label'] = "Predicted"
+                actual_label_arg['label'] = "Ground Truth"
 
-        plt.plot(range(timesteps),
-                 pred[:, 0],
-                 c=color(i),
-                 alpha=0.3,
-                 **predicted_label_arg)
-        plt.plot(range(timesteps),
-                 actual[:, 0],
-                 c=color(i),
-                 **actual_label_arg)
+            plt.plot(range(timesteps),
+                     pred[:, 0],
+                     c=color(i),
+                     alpha=0.3,
+                     **predicted_label_arg)
+            plt.plot(range(timesteps),
+                     actual[:, 0],
+                     c=color(i),
+                     **actual_label_arg)
 
-    plt.xlabel("Timesteps")
-    plt.ylabel("Position")
-    plt.legend()
-    plt.show()
-    print(predicted_states.shape)
-    print("Position MSE: ", np.mean(
-        (predicted_states[:, :, 0] - actual_states[:, :, 0])**2))
+        plt.xlabel("Timesteps")
+        plt.ylabel("Position")
+        plt.legend()
+        plt.show()
+
+    print("Position RMSE, degrees: ", np.sqrt(np.mean(
+        (predicted_states[:, :, 0] - actual_states[:, :, 0])**2)) * 180. / np.pi)
 
     # plt.figure(figsize=(15, 10))
     # for i, (pred, actual) in enumerate(zip(predicted_states, actual_states)):
