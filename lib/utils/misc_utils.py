@@ -4,6 +4,10 @@ from IPython.display import clear_output
 
 
 def progress_bar(progress):
+    """
+    Simple progress bar for Jupyter notebooks.
+    TODO: switch to tqdm?
+    """
     bar_length = 20
     if isinstance(progress, int):
         progress = float(progress)
